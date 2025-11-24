@@ -29,7 +29,7 @@ async def get_current_user(
     
     # Get user from database
     result = db.execute(
-        text("SELECT id, email, name, role FROM users WHERE id = :id"),
+        text("SELECT id, username, email, is_active FROM admin_users WHERE id = :id"),
         {"id": user_id}
     )
     user = result.fetchone()
@@ -38,6 +38,13 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found"
+        )
+    
+    # Check if user is active
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is inactive"
         )
     
     return dict(user._mapping)
