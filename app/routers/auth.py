@@ -12,7 +12,7 @@ from app.middleware.rate_limit import limiter
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    username: str  # Bisa username atau email
     password: str
 
 class LoginResponse(BaseModel):
@@ -23,29 +23,38 @@ class LoginResponse(BaseModel):
 @router.post("/login", response_model=LoginResponse)
 @limiter.limit("5/minute")  # Max 5 login attempts per minute
 async def login(request: Request, login_data: LoginRequest, db: Session = Depends(get_db)):
-    """Login with email and password - bcrypt verification"""
+    """Login with username/email and password - bcrypt verification"""
     try:
-        # Get user from PostgreSQL
+        # Get user from PostgreSQL (support both username and email)
         user = db.execute(
-            text("SELECT id, email, password_hash, name, role FROM users WHERE email = :email"),
-            {"email": login_data.email}
+            text("""
+                SELECT id, username, email, hashed_password, is_active 
+                FROM admin_users 
+                WHERE username = :username OR email = :username
+            """),
+            {"username": login_data.username}
         ).fetchone()
         
         if not user:
-            raise HTTPException(status_code=401, detail="Email atau password salah")
+            raise HTTPException(status_code=401, detail="Username atau password salah")
+        
+        # Check if user is active
+        if not user.is_active:
+            raise HTTPException(status_code=401, detail="Akun tidak aktif")
         
         # Verify password with bcrypt
         is_valid = bcrypt.checkpw(
             login_data.password.encode('utf-8'),
-            user.password_hash.encode('utf-8')
+            user.hashed_password.encode('utf-8')
         )
         
         if not is_valid:
-            raise HTTPException(status_code=401, detail="Email atau password salah")
+            raise HTTPException(status_code=401, detail="Username atau password salah")
         
         # Generate JWT token
         token_data = {
             "user_id": user.id,
+            "username": user.username,
             "email": user.email,
             "exp": datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
         }
@@ -56,9 +65,8 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
             "token_type": "bearer",
             "user": {
                 "id": user.id,
-                "email": user.email,
-                "name": user.name,
-                "role": user.role
+                "username": user.username,
+                "email": user.email
             }
         }
     
@@ -66,7 +74,7 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
         raise
     except Exception as e:
         print(f"Login error: {e}")
-        raise HTTPException(status_code=500, detail="Terjadi kesalahan server")
+        raise HTTPException(status_code=500, detail=f"Terjadi kesalahan server: {str(e)}")
 
 @router.get("/me")
 async def get_current_user():
