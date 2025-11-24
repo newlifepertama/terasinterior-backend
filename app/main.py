@@ -32,12 +32,19 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 app.add_middleware(RequestSizeLimitMiddleware)
 
 # CORS middleware
+allowed_origins = [
+    settings.frontend_url,
+    settings.production_url,
+    "http://localhost:5173",
+    "http://127.0.0.1:5173"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url, settings.production_url],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["POST", "GET", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["*"],
 )
 
 # Include routers
