@@ -12,7 +12,7 @@ from app.middleware.rate_limit import limiter
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 class LoginRequest(BaseModel):
-    username: str  # Bisa username atau email
+    email: str  # Bisa email atau username
     password: str
 
 class LoginResponse(BaseModel):
@@ -30,9 +30,9 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
             text("""
                 SELECT id, username, email, hashed_password, is_active 
                 FROM admin_users 
-                WHERE username = :username OR email = :username
+                WHERE username = :email OR email = :email
             """),
-            {"username": login_data.username}
+            {"email": login_data.email}
         ).fetchone()
         
         if not user:
